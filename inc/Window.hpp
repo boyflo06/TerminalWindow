@@ -3,6 +3,7 @@
 #include <sys/ioctl.h>
 
 #include "Array2D.hpp"
+#include "color.hpp"
 
 namespace tw {
 
@@ -13,7 +14,7 @@ class Window {
     static void destructHandler(int);
 
     winsize size;
-    Array2D<wchar_t> buffer;
+    Array2D<color> buffer;
     char *exit_alt_screen_str;
 
     Window();
@@ -24,6 +25,9 @@ class Window {
 
     Window(const Window &other) = delete;
     Window &operator=(const Window &other) = delete;
+
+    void    refresh();
+    void    putPixel(size_t x, size_t y, color color);
 };
 
 }  // namespace tw

@@ -40,7 +40,7 @@ inline void Array2D<T>::deallocate(T **container, vec2i size) {
 template <typename T>
 inline T **Array2D<T>::allocate(size_t x, size_t y) {
     T **ret = new T*[y];
-    for (int i = 0; i < y; ++i) {
+    for (size_t i = 0; i < y; ++i) {
         ret[i] = new T[x];
     }
     return ret;
@@ -59,7 +59,7 @@ inline Array2D<T>::~Array2D() {
 
 template <typename T>
 inline T &Array2D<T>::at(size_t x, size_t y) {
-    if (x >= this->_size.x || y >= this->_size.y) {
+    if (x >= static_cast<size_t>(this->_size.x) || y >= static_cast<size_t>(this->_size.y)) {
         throw std::runtime_error("Out of region exception");
     }
     return this->container[y][x];
@@ -86,8 +86,8 @@ inline void Array2D<T>::resize(size_t x, size_t y) {
     T **temp = this->allocate(x, y);
 
     if (this->container != nullptr) {
-        for (int i = 0; i < y && i < this->_size.y; ++i) {
-            for (int j = 0; j < x && j < this->_size.x; ++i) {
+        for (size_t i = 0; i < y && i < static_cast<size_t>(this->_size.y); ++i) {
+            for (size_t j = 0; j < x && j < static_cast<size_t>(this->_size.x); ++i) {
                 temp[i][j] = this->container[i][j];
             }
         }
@@ -95,6 +95,7 @@ inline void Array2D<T>::resize(size_t x, size_t y) {
     }
 
     this->container = temp;
+    this->_size = {static_cast<int>(x), static_cast<int>(y)};
 }
 
 template <typename T>
