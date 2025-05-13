@@ -4,6 +4,8 @@
 
 #include "Array2D.hpp"
 #include "color.hpp"
+#include "X11/Xlib.h"
+#include <termios.h>
 
 namespace tw {
 
@@ -16,6 +18,10 @@ class Window {
     winsize size;
     Array2D<color> buffer;
     char *exit_alt_screen_str;
+	::Window xWindow;
+	Display *xDisplay;
+	bool focused;
+	termios orig_termios;
 
     Window();
     ~Window();

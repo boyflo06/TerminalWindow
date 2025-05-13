@@ -15,10 +15,10 @@ FLAGS = -Wall -Wextra -Werror -Ofast
 all: ${FINAL}
 
 ${FINAL}: ${OBJ} | ${OUT_PATH}
-	c++ ${FLAGS} -I ${INC_PATH} -o $@ $^ -lncurses
+	c++ ${FLAGS} -I ${INC_PATH} -o $@ $^ -lncurses -lX11
 
 ${OBJ_PATH}%.o: ${SRC_PATH}%.cpp | $(OBJ_DIRS)
-	c++ ${FLAGS} -I ${INC_PATH} -c $< -o $@ -lncurses
+	c++ ${FLAGS} -I ${INC_PATH} -c $< -o $@ -lncurses -lX11
 
 $(OBJ_DIRS):
 	mkdir -p $@

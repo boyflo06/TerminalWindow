@@ -4,11 +4,16 @@
 #include <signal.h>
 #include <term.h>
 #include <unistd.h>
+#include <X11/Xatom.h>
+#include <X11/keysym.h>
+#include <X11/Xutil.h>
 
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <sstream>
+#include <string>
+#include <fstream>
 
 namespace tw {
 
@@ -21,9 +26,13 @@ void Window::destructHandler(int) {
     Window& instance = Window::getInstance();
     signal(SIGWINCH, SIG_DFL);
 
+	tcsetattr(STDIN_FILENO, TCSANOW, &instance.orig_termios);
+
     std::cout << "\x1b[?25h";  // Show cursor
 
     std::cout << "\x1b[?1003;1006l";  // Disable mouse interaction reporting
+
+	std::cout << "\x1b[?1004l";
 
     std::cout.flush();
 
@@ -31,8 +40,117 @@ void Window::destructHandler(int) {
     exit(0);
 }
 
+std::ifstream getStatStream(pid_t pid) {
+	std::string statPath = "/proc/" + std::to_string(pid) + "/stat";
+
+	if (access(statPath.c_str(), R_OK) != 0) throw std::runtime_error("proc stat file not found for pid or not readable " + std::to_string(pid));
+
+	std::ifstream file = std::ifstream(statPath);
+
+	if (file.fail()) throw std::runtime_error("couldn't open proc stat file " + std::to_string(pid));
+
+	return file;
+}
+
+pid_t getTermPid(std::ifstream &file) {
+	std::string trashbin, termPidStr;
+
+	file >> trashbin;
+	file >> trashbin;
+	file >> trashbin;
+	file >> termPidStr;
+
+	return std::stoi(termPidStr);
+}
+
+static ::Window getXWindow(Display *display) {
+	pid_t sh_pid = getppid();
+	std::ifstream sh_stat = getStatStream(sh_pid);
+    pid_t terminal_pid = getTermPid(sh_stat);
+    
+    // Try the WINDOWID environment variable first (most reliable)
+    /* const char* windowid_env = getenv("WINDOWID");
+    if (windowid_env) {
+        std::cout << "Found WINDOWID environment variable: " << windowid_env << std::endl;
+    } else {
+        std::cout << "WINDOWID environment variable not set, searching windows..." << std::endl;
+    } */
+    
+    // Get _NET_CLIENT_LIST property from root window
+    Atom prop = XInternAtom(display, "_NET_CLIENT_LIST", False);
+    Atom actual_type;
+    int actual_format;
+    unsigned long num_items, bytes_after;
+    unsigned char* data = NULL;
+    
+    XGetWindowProperty(
+        display, DefaultRootWindow(display), prop, 0, ~0L, 
+        False, XA_WINDOW, &actual_type, &actual_format, 
+        &num_items, &bytes_after, &data
+    );
+    
+    
+    if (data) {
+        ::Window* windows = (::Window*)data;
+        Atom pid_atom = XInternAtom(display, "_NET_WM_PID", False);
+        
+        for (unsigned long i = 0; i < num_items; i++) {
+            Atom actual_type_pid;
+            int actual_format_pid;
+            unsigned long num_items_pid, bytes_after_pid;
+            unsigned char* pid_data = NULL;
+            
+            ::Window window = windows[i];
+            
+            XGetWindowProperty(
+                display, window, pid_atom, 0, 1, False, XA_CARDINAL,
+                &actual_type_pid, &actual_format_pid, &num_items_pid,
+                &bytes_after_pid, &pid_data
+            );
+            
+            if (pid_data) {
+                pid_t window_pid = *(pid_t*)pid_data;
+                
+				if (window_pid == terminal_pid) {
+					XFree(data);
+					return window;
+				}
+                
+                XFree(pid_data);
+            }
+        }
+        
+        XFree(data);
+    }
+	return 0;
+}
+
 Window::Window() {
-    std::cout << "Starting this shiiii" << std::endl;
+	//X11 Setup
+
+	this->xDisplay = XOpenDisplay(NULL);
+	if (!this->xDisplay) throw std::runtime_error("Couldn't open X11 display (connection failed)");
+
+	this->xWindow = getXWindow(this->xDisplay);
+	if (!this->xWindow) throw std::runtime_error("Couldn't fetch terminal window. Please run this in a standalone terminal!");
+	std::cout << "window id: " << this->xWindow << std::endl;
+
+	::Window root = DefaultRootWindow(xDisplay);
+
+	XGrabKey(this->xDisplay, AnyKey, AnyModifier, root, False, GrabModeAsync, GrabModeAsync);
+
+	XSelectInput(this->xDisplay, root, KeyPressMask | KeyReleaseMask /* |    // Keyboard events
+                 ButtonPressMask | ButtonReleaseMask | // Mouse button events
+                 PointerMotionMask */);
+
+	//Term Setup
+
+	termios raw;
+	tcgetattr(STDIN_FILENO, &this->orig_termios);
+
+	raw = this->orig_termios;
+	raw.c_lflag &= ~(ECHO | ICANON);
+	tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
     if (setupterm(nullptr, STDOUT_FILENO, nullptr) != OK) throw std::runtime_error("Failed to initialize terminal system");
 
@@ -52,6 +170,9 @@ Window::Window() {
     std::cout << "\x1b[?25l";  // Hide cursor
 
     std::cout << "\x1b[?1003;1006h";  // Enable mouse interaction reporting
+
+	std::cout << "\x1b[?1004h";
+	this->focused = true;
 
     std::cout.flush();
 
