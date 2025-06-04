@@ -52,6 +52,7 @@
 		"cstring": "cpp",
 		"optional": "cpp",
 		"ranges": "cpp",
-		"sstream": "cpp"
+		"sstream": "cpp",
+		"fstream": "cpp"
 	}
 }

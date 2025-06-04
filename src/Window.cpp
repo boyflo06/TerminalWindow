@@ -137,12 +137,48 @@ Window::Window() {
 
 	::Window root = DefaultRootWindow(xDisplay);
 
-	XGrabKey(this->xDisplay, AnyKey, AnyModifier, root, False, GrabModeAsync, GrabModeAsync);
+	XGrabKey(this->xDisplay, AnyKey, 0, root, True, GrabModeAsync, GrabModeAsync);
 
 	XSelectInput(this->xDisplay, root, KeyPressMask | KeyReleaseMask /* |    // Keyboard events
                  ButtonPressMask | ButtonReleaseMask | // Mouse button events
                  PointerMotionMask */);
-
+    
+    XEvent event;
+    KeySym keysym;
+    char buffer[10];
+    while (true) {
+        if (XPending(this->xDisplay)) {
+            if (XPending(this->xDisplay)) {
+            XNextEvent(this->xDisplay, &event);
+            
+            if (event.type == KeyPress || event.type == KeyRelease) {
+                // Convert keycode to keysym
+                keysym = XLookupKeysym(&event.xkey, 0);
+                
+                // Get key string representation
+                XLookupString(&event.xkey, buffer, sizeof(buffer), NULL, NULL);
+                
+                // Print event details
+                std::cout << (event.type == KeyPress ? "Key Press: " : "Key Release: ");
+                if (event.xkey.state & ShiftMask) std::cout << "Shift+";
+                if (event.xkey.state & ControlMask) std::cout << "Ctrl+";
+                if (event.xkey.state & Mod1Mask) std::cout << "Alt+";
+                if (event.xkey.state & Mod4Mask) std::cout << "Super+";
+                std::cout << XKeysymToString(keysym) << " (KeyCode: " << event.xkey.keycode << ")" 
+                          << std::endl;
+                
+                // Detect Ctrl+C specifically to demonstrate handling special keys
+                if (event.type == KeyPress && keysym == XK_c && 
+                    (event.xkey.state & ControlMask) && !(event.xkey.state & ~ControlMask)) {
+                    std::cout << "Ctrl+C detected - you can also exit with this" << std::endl;
+                }
+            }
+        } else {
+            // No events, sleep briefly to avoid high CPU usage
+            usleep(10000);  // 10ms
+        }
+        }
+    }
 	//Term Setup
 
 	termios raw;
